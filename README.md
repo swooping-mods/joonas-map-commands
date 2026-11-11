@@ -1,5 +1,7 @@
 # J.O.O.N.A.S. Map Commands
 
+<img src="media/icon.png" alt="J.O.O.N.A.S. Map Commands icon" width="128" height="128">
+
 Shared map controls: select robots, move, assign sectors, stop, resume and roam.
 
 ## Install
