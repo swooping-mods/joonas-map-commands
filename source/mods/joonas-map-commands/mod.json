@@ -1,0 +1,17 @@
+{
+  "id": "joonas-map-commands",
+  "kind": "native",
+  "version": "0.3.0",
+  "backlog": "M05",
+  "feature_dependencies": [
+    "map-control-framework"
+  ],
+  "gameplay": true,
+  "requires_apis": [
+    {
+      "api": "map-control-framework.map-controls",
+      "abi": 1,
+      "min_size": 32
+    }
+  ]
+}

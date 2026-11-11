@@ -1,0 +1,23 @@
+# J.O.O.N.A.S. Map Commands
+
+Shared map controls: select robots, move, assign sectors, stop, resume and roam.
+
+## Install
+
+Install [Moon Sweepers Mod Loader](https://github.com/swooping-mods/moon-sweepers-mod-loader) first.
+
+Download [joonas-map-commands-0.3.0.msmod](content/joonas-map-commands-0.3.0.msmod), import it with **Install mod package**, then select the mod and its required frameworks.
+
+Required mods: [map-control-framework](https://github.com/swooping-mods/map-control-framework).
+
+## Compatibility
+
+Version 0.3.0. Targets the pinned Steam Windows x64 IL2CPP build of Moon Sweepers (Steam app 5335510). On Linux, the game runs through Proton. Experimental: back up saves before using save-affecting mods.
+
+## Build
+
+Run `python3 build.py --check` to verify source hashes, then `python3 build.py` to write a build under `.local/build/`. Requires installed Clang, lld-link and llvm-dlltool.
+
+## Credits
+
+See [CREDITS.txt](CREDITS.txt) and [third-party notices](vendored/THIRD_PARTY_NOTICES.md).
