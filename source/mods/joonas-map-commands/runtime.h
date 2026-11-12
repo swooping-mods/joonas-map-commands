@@ -1,6 +1,7 @@
 /* Each feature owns a copy: there are no runtime feature-mod dependencies. */
 #include "../../runtime/native/gameplay.h"
 #include "api.h"
+#include "../../runtime/native/local_actor.h"
 #include "../../runtime/native/input.h"
 #include "store.h"
 #include "../../runtime/sdk/wallet.h"
@@ -18,7 +19,7 @@ static struct {
  const char *status;float next_scan,time;PTR log;
  int (*map_context_active)(void *walker);
 } m;
-static inline int malive(PTR obj){if(!obj)return 0;int ok=1;void *a[]={obj};PTR v=call(m.alive,0,a,&ok);return ok&&v&&*(unsigned char*)unbox(v);}
+static inline int malive(PTR obj){if(!obj)return 0;int ok=1;void *a[]={obj};PTR v=call(m.alive,0,a,&ok);return ok&&v&&unbox(v)&&*(unsigned char*)unbox(v);}
 
 static inline void mevent(const char *s){if(!m.log)return;char b[256],*p=cat(b,"{\"event\":\"");p=cat(p,s);p=cat(p,"\"}\n");DWORD n=0;WriteFile(m.log,b,(DWORD)(p-b),&n,0);}
 static inline PTR mm(const char *ns,const char *type,const char *name,const char *sig){return dmethod(ns,type,name,sig);}
@@ -67,23 +68,26 @@ static inline int isflag(PTR world,int i){int ok=1;void *a[]={&i};PTR item=call(
 static inline float radius(PTR world){PTR settings=0;float r=0;field_value(world,m.settings_field,&settings);if(settings)field_value(settings,m.radius_field,&r);return r;}
 static int feature_start(PTR domain,PTR game);
 static void feature_end(void);
+static void feature_idle(void);
 static void feature_tick(PTR walker,PTR world,int input);
-static int update(int id,Context *context){(void)id;if(!m.thread)m.thread=GetCurrentThreadId();if(m.thread!=GetCurrentThreadId())return 0;int ok=1;int frame=integer(m.frame,0,&ok);if(!ok||frame==m.last_frame)return 0;m.last_frame=frame;
- PTR walker=(PTR)context->rcx,world=0;field_value(walker,m.world_field,&world);
- if(!malive(world)||world!=dget(m.world)||walker!=dget(m.walker)){
-  save();feature_end();destroy_root(&m.ui);ddrop(&m.label);ddrop(&m.map);ddrop(&m.world);ddrop(&m.walker);m.root[0]=0;m.owned=m.shop=m.active_tool=m.invalid_store=m.dirty=m.authority_lost=0;dzero(m.known,sizeof(m.known));m.status="";m.next_scan=0;
-  if(!malive(world))return 0;m.world=dhold(world);m.walker=dhold(walker);if(host())load();
- }
- if(boolean(m.restoring,world,&ok)||!ok){show("",0);return 0;}
- if(!host())m.authority_lost=1;
+static int update(int id,Context *context){(void)id;PTR walker=(PTR)context->rcx;if(!moon_local_actor_admit(walker))return 0;if(!m.thread)m.thread=GetCurrentThreadId();if(m.thread!=GetCurrentThreadId())return 0;int ok=1;int frame=integer(m.frame,0,&ok);if(!ok||frame==m.last_frame)return 0;m.last_frame=frame;
  moon_input_snapshot(m.down,m.pressed);
 #ifdef MOD_INPUT_ACTIONS
  static const MoonInputAlias input_actions[]=MOD_INPUT_ACTIONS;
  moon_input_alias_edges(input_actions,sizeof(input_actions)/sizeof(*input_actions),m.pressed,1);
 #endif
+ PTR world=0;field_value(walker,m.world_field,&world);
+ if(!malive(world)||world!=dget(m.world)||walker!=dget(m.walker)){
+  save();feature_end();destroy_root(&m.ui);ddrop(&m.label);ddrop(&m.map);ddrop(&m.world);ddrop(&m.walker);m.root[0]=0;m.owned=m.shop=m.active_tool=m.invalid_store=m.dirty=m.authority_lost=0;dzero(m.known,sizeof(m.known));m.status="";m.next_scan=0;
+  if(!malive(world))return 0;m.world=dhold(world);m.walker=dhold(walker);if(!m.world||!m.walker){ddrop(&m.world);ddrop(&m.walker);return 0;}if(host())load();
+ }
+ feature_idle();
+ if(!host())m.authority_lost=1;
+ if(boolean(m.restoring,world,&ok)||!ok){feature_end();show("",0);return 0;}
  int menu_blocked=boolean(m.menu,walker,&ok);
  int input=boolean(m.focused,0,&ok)&&!boolean(m.typing,0,&ok)&&(!menu_blocked||(m.map_context_active&&m.map_context_active(walker)))&&ok;
  m.time=dnumber(mm("UnityEngine","Time","get_unscaledTime",""),0,&ok);
+ if(!ok||!(m.time>=0&&m.time<1e12f)){feature_end();show("",0);return 0;}
  if(moon_shop_poll()&&input){m.shop=1;m.status="";}
  if(!input){m.shop=0;show("",0);return 0;}
  feature_tick(walker,world,input);if(m.dirty&&m.time>=m.next_scan+2)save();return 0;
@@ -99,6 +103,6 @@ static int bind(PTR game){
  B(text,"UnityEngine.UI","Text","set_text","System.String");B(font,"UnityEngine.UI","Text","set_font","UnityEngine.Font");B(font_size,"UnityEngine.UI","Text","set_fontSize","System.Int32");B(color,"UnityEngine.UI","Graphic","set_color","UnityEngine.Color");B(raycast,"UnityEngine.UI","Graphic","set_raycastTarget","System.Boolean");B(alignment,"UnityEngine.UI","Text","set_alignment","UnityEngine.TextAnchor");B(image_color,"UnityEngine.UI","Graphic","set_color","UnityEngine.Color");
  B(map_open,"MoonCleaners","MoonMapScreen","get_IsOpen","");B(map_begin,"MoonCleaners","MoonMapScreen","Open","");B(map_close,"MoonCleaners","MoonMapScreen","Close","");B(landmark_count,"MoonCleaners","MoonWorld","get_LandmarkCount","");B(landmark_dir,"MoonCleaners","MoonWorld","LandmarkDirection","System.Int32");B(raised,"MoonCleaners","MoonWorld","IsLandmarkRaised","System.Int32");
 #undef B
- m.world_field=get_field(find_class("MoonCleaners","MoonWalker"),"world");m.settings_field=get_field(find_class("MoonCleaners","MoonWorld"),"settings");m.radius_field=get_field(find_class("MoonCleaners","MoonSettings"),"radius");return m.world_field&&m.settings_field&&m.radius_field&&ss_bind();
+ m.world_field=get_field(find_class("MoonCleaners","MoonWalker"),"world");m.settings_field=get_field(find_class("MoonCleaners","MoonWorld"),"settings");m.radius_field=get_field(find_class("MoonCleaners","MoonSettings"),"radius");return m.world_field&&moon_local_actor_bind()&&m.settings_field&&m.radius_field&&ss_bind();
 }
 __declspec(dllexport) int MoonLab_ModStart(PTR domain,PTR game){if(!bind_runtime(domain,game)||!dapi(game)||!bind(game)||!feature_start(domain,game))return 0;char path[1024];DWORD n=GetEnvironmentVariableA("MOONLAB_EVIDENCE",path,900);if(n&&n<900){cat(path+n,"\\" MOD_ID ".jsonl");m.log=CreateFileA(path,0x40000000,1,0,1,0x80,0);}if(FEATURE==8||FEATURE==15)moon_shop_listen(MOD_ID);m.last_frame=-1;before_hook=update;if(!prepare_hook(method("MoonCleaners","MoonWalker","Update",0),100671733,0,game)||!install_hooks()){moon_shop_unlisten();return 0;}mevent("ready-testing-deferred");return 1;}
